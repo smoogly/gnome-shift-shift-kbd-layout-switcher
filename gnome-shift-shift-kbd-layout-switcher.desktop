@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=gnome-shift-shift-kbd-layout-switcher
+Comment=Shift-shift input source switcher for Gnome, that does not depend on keypress order.
+Exec=gnome-shift-shift-kbd-layout-switcher
+Terminal=false
+Type=Application
+NoDisplay=false

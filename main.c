@@ -12,12 +12,13 @@
 #include <X11/extensions/XInput.h>
 #include <X11/keysym.h>
 
-#define KEY_SHIFT		XK_Shift_L
-#define KEY_ALT			XK_Alt_L
+#define KEY_SHIFT_L		XK_Shift_L
+#define KEY_SHIFT_R		XK_Shift_R
 
 #define CMD_GET_SOURCES			"gsettings get org.gnome.desktop.input-sources sources"
 #define CMD_GET_CURRENT_SOURCE	"gsettings get org.gnome.desktop.input-sources current"
 #define CMD_SET_CURRENT_SOURCE	"gsettings set org.gnome.desktop.input-sources current %d"
+#define CMD_ACTIVATE_CURRENT_SOURCE	"gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval \"imports.ui.status.keyboard.getInputSourceManager().inputSources[%d].activate()\""
 
 #define MAX_INPUT_CLASSES 512
 
@@ -76,9 +77,13 @@ int get_current_input_source() {
 }
 
 void set_current_input_source(int source) {
-	char buffer[256];
-	sprintf(buffer, CMD_SET_CURRENT_SOURCE, source);
-	system(buffer);
+	char setCommandBuffer[256];
+	sprintf(setCommandBuffer, CMD_SET_CURRENT_SOURCE, source);
+	system(setCommandBuffer);
+
+	char activateCommandBuffer[256];
+    sprintf(activateCommandBuffer, CMD_ACTIVATE_CURRENT_SOURCE, source);
+    system(activateCommandBuffer);
 }
 
 void switch_input_source(int dir) {
@@ -166,36 +171,31 @@ int main() {
 	// Find all keyboard devices and select events
 	attach_input_devices(display, &events);
 	
-	int alt_pressed = 0;
-	int shift_pressed = 0;
+	int shift_r_pressed = 0;
+	int shift_l_pressed = 0;
 	
 	while (1) {
 		XNextEvent(display, &event);
 		if (event.type == xi_presence) {
 			// Reset and find all keyboard devices and select events
 			attach_input_devices(display, &events);
-			alt_pressed = shift_pressed = 0;
+			shift_r_pressed = shift_l_pressed = 0;
 		} else {
 			if (event.type == events.press_event_id) {
 				XDeviceKeyEvent *key = (XDeviceKeyEvent *) &event;
 				KeySym ks = XkbKeycodeToKeysym(display, key->keycode, 0, 0);
-				
-				int dir = 0;
-				
-				if (ks == KEY_SHIFT) {
-					if (alt_pressed)
-						dir = 1;
-					shift_pressed = 1;
+
+				if (ks == KEY_SHIFT_L) {
+					shift_l_pressed = 1;
 				}
 				
-				if (ks == KEY_ALT) {
-					if (shift_pressed)
-						dir = -1;
-					alt_pressed = 1;
+				if (ks == KEY_SHIFT_R) {
+					shift_r_pressed = 1;
 				}
 				
-				if (dir) {
+				if (shift_l_pressed && shift_r_pressed) {
 					if (threads_cnt < (sizeof(threads_pool) / sizeof(threads_pool[0]))) {
+					    int dir = 1;
 						pthread_create(&threads_pool[threads_cnt], NULL, switch_input_source_thread, &dir);
 						++threads_cnt;
 					}
@@ -204,11 +204,11 @@ int main() {
 				XDeviceKeyEvent *key = (XDeviceKeyEvent *) &event;
 				KeySym ks = XkbKeycodeToKeysym(display, key->keycode, 0, 0);
 				
-				if (ks == KEY_SHIFT)
-					shift_pressed = 0;
+				if (ks == KEY_SHIFT_L)
+					shift_l_pressed = 0;
 				
-				if (ks == KEY_ALT)
-					alt_pressed = 0;
+				if (ks == KEY_SHIFT_R)
+					shift_r_pressed = 0;
 			}
 		}
 	}
